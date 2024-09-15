@@ -9,12 +9,7 @@ import {
 } from "./secp256r1";
 import { sha256 } from "./crypto";
 import { toBase64 } from "./uint8array";
-import {
-	ecdsaSign,
-	ecdsaVerify,
-	formatSignature,
-	uncompressedKeyFormat,
-} from "./ecc";
+import { ecdsaSign, formatSignature, uncompressedKeyFormat } from "./ecc";
 
 class Connection {
 	private privateKey = generateSafeScalar();
@@ -42,26 +37,6 @@ class Connection {
 			const tokenToSend = `${btoa(result.token)}.${await toBase64(
 				formatSignature(signature)
 			)}`;
-
-			console.log(
-				"Does the signature match",
-				ecdsaVerify(
-					scalarMultiply(this.privateKey, G),
-					new Uint8Array(await sha256(new TextEncoder().encode(result.token))),
-					signature
-				)
-			);
-
-			console.log(
-				[...new TextEncoder().encode(result.token)].map((c) =>
-					c.toString(16).padStart(2, "0")
-				)
-			);
-			console.log(
-				[...formatSignature(signature)].map((c) =>
-					c.toString(16).padStart(2, "0")
-				)
-			);
 
 			const publicKey = scalarMultiply(this.privateKey, G);
 			if (publicKey === pointAtInfinity) {

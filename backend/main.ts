@@ -171,9 +171,6 @@ wss.on("connection", function (ws: WebSocket, request: IncomingMessage) {
 				return;
 			}
 			if (!verified) {
-				console.log("public key", publicKey);
-				console.log("token", token);
-				console.log("signature", signature);
 				ws.send(
 					JSON.stringify({
 						error: "Failed to verify",
@@ -269,7 +266,7 @@ app.use(cookieParser());
 app.post("/connection-token", (req, res) => {
 	let sessionToken = req.cookies.session_token;
 	if (!sessionToken) {
-		console.log("Session token not found");
+		logger.debug("Session token not found");
 		sessionToken = crypto.randomBytes(32).toString("base64");
 	}
 

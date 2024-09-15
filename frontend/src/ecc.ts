@@ -128,7 +128,6 @@ export function ecdsaVerify(
 
 	if (newPoint === pointAtInfinity) return false;
 
-	// console.log(modulo(newPoint.x, n), modulo(r, n));
 	return modulo(newPoint.x, n) === modulo(r, n);
 }
 

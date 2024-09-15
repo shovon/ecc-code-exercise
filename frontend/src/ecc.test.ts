@@ -12,8 +12,6 @@ test("ecdsa verify", async () => {
 	const message = new TextEncoder().encode("Hello, World!");
 	const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", message));
 
-	// console.log(hash);
-
 	const publicKey = {
 		x: 1227531136851072306399616257763385555463707176189921119260468650815840078905n,
 		y: 72400973557907635383026146117340945016993908415396308190137405300086690394003n,

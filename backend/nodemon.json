@@ -1,0 +1,5 @@
+{
+	"watch": ["./"],
+	"ext": "ts,tsx,env",
+	"exec": "env $(cat .env) npx -y ts-node ./main.ts"
+}

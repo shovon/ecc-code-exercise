@@ -35,10 +35,6 @@ function leftPadUint8Array(arr: Uint8Array, targetLength: number): Uint8Array {
  * @returns The point as a uint8array
  */
 export function uncompressedKeyFormat(point: NonPointAtInfinity): Uint8Array {
-	const unpadded = bigIntToByteArray(point.x);
-	const padded = leftPadUint8Array(bigIntToByteArray(point.x), 32);
-	console.log(unpadded, padded);
-	console.log(bigIntToByteArray(point.y).length);
 	return concatenateUint8Arrays(
 		bigIntToByteArray(0x04n),
 		leftPadUint8Array(bigIntToByteArray(point.x), 32),

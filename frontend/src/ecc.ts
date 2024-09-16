@@ -320,25 +320,38 @@ export async function schemeVerifyAndDecrypt(
 	| { message: Uint8Array | null; valid: false }
 	| { message: Uint8Array; valid: true }
 > {
-	const parts = payloadAndSignature.split(".");
-	if (parts.length !== 2) {
-		throw new Error("Invalid payload and signature");
+	try {
+		const parts = payloadAndSignature.split(".");
+		if (parts.length !== 2) {
+			return { message: null, valid: false };
+		}
+		const [materialPart, signaturePart] = parts;
+		const material = atob(materialPart);
+		const signature = unformatSignature(await fromBase64(signaturePart));
+
+		const verified = ecdsaVerify(
+			senderPublicKey,
+			new Uint8Array(await sha256(new TextEncoder().encode(material))),
+			signature
+		);
+
+		const eciesMaterial = await decodeECIESMaterial(material);
+
+		const message = await eciesDecrypt(recipientPrivateKey, eciesMaterial);
+		if (verified && message) {
+			return { message, valid: true };
+		}
+		return { message, valid: false };
+	} catch (e) {
+		return { message: null, valid: false };
 	}
-	const [materialPart, signaturePart] = parts;
-	const material = atob(materialPart);
-	const signature = unformatSignature(await fromBase64(signaturePart));
+}
 
-	const verified = ecdsaVerify(
-		senderPublicKey,
-		new Uint8Array(await sha256(new TextEncoder().encode(material))),
-		signature
-	);
-
-	const eciesMaterial = await decodeECIESMaterial(material);
-
-	const message = await eciesDecrypt(recipientPrivateKey, eciesMaterial);
-	if (verified && message) {
-		return { message, valid: true };
+export async function isValidPublicKey(base64String: string): Promise<boolean> {
+	const publicKey = await fromBase64(base64String);
+	if (publicKey.length !== 65 || publicKey[0] !== 0x04) {
+		return false;
 	}
-	return { message, valid: false };
+	const point = parseUncompressed(publicKey);
+	return isOnCurve(point);
 }

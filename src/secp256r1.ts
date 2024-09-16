@@ -137,7 +137,10 @@ export function add(p1: Point, p2: Point): Point {
 	const m = slope(p1, p2);
 	if (m === verticalSlope) return pointAtInfinity;
 
-	const xr = m ** 2n - p1.x - p2.x;
+	// THIS IS WHERE IT IS BROKEN
+
+	const xr = 0n;
+
 	return {
 		x: modulo(xr, p),
 		y: modulo(m * (p1.x - xr) - p1.y, p),

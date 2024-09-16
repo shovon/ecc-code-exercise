@@ -122,15 +122,21 @@ function App() {
 					}}
 				></textarea>
 				<h3 className="font-bold mb-2 mt-3">Their message decrypted</h3>
-				{decryptResult.valid ? (
-					<textarea
-						className="textarea"
-						value={new TextDecoder().decode(decryptResult.message)}
-						readOnly
-					></textarea>
+				{isOtherPublicKeyValid ? (
+					decryptResult.valid ? (
+						<textarea
+							className="textarea"
+							value={new TextDecoder().decode(decryptResult.message)}
+							readOnly
+						></textarea>
+					) : (
+						<div className="text-red-500">
+							Can't decrypt without a valid ciphertext
+						</div>
+					)
 				) : (
 					<div className="text-red-500">
-						Can't decrypt without a valid ciphertext
+						Can't decrypt without the other party's valid public key
 					</div>
 				)}
 			</div>

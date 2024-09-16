@@ -343,6 +343,7 @@ export async function schemeVerifyAndDecrypt(
 		}
 		return { message, valid: false };
 	} catch (e) {
+		console.error(e);
 		return { message: null, valid: false };
 	}
 }

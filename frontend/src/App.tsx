@@ -207,10 +207,14 @@ function App() {
 
 	return (
 		<div className="flex">
-			<div className="border-gray-200 border-r h-screen min-w-[200px]">
+			<div className="border-gray-200 border-r h-screen w-[200px]">
+				<div className="font-bold px-6 py-4">Chats</div>
 				{participants.map(([id, participant]) => (
-					<NavLink to={`/chat/${id}`}>
-						<div className="px-6 py-4 border-b border-solid" key={id}>
+					<NavLink
+						className="text-ellipsis"
+						to={`/chat/${encodeURIComponent(id)}`}
+					>
+						<div className="px-6 py-4 border-y border-solid" key={id}>
 							{participant.name ?? "Anonymous"}
 						</div>
 					</NavLink>

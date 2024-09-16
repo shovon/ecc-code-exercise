@@ -1,4 +1,5 @@
 import { bigIntToByteArray, uint8ArrayToBigInt } from "./bigint";
+import { sha256 } from "./crypto";
 import { modulo, multiplicativeInverse } from "./math";
 import {
 	add,
@@ -11,7 +12,7 @@ import {
 	pointAtInfinity,
 	scalarMultiply,
 } from "./secp256r1";
-import { concatenateUint8Arrays } from "./uint8array";
+import { concatenateUint8Arrays, fromBase64, toBase64 } from "./uint8array";
 
 function leftPadUint8Array(arr: Uint8Array, targetLength: number): Uint8Array {
 	// If no padding is needed, return the original array
@@ -46,7 +47,7 @@ export function uncompressedKeyFormat(point: NonPointAtInfinity): Uint8Array {
  * Parses the uncompressed string
  * @param str Uncompressed buffer
  */
-export function parseUncompressed(arr: Uint8Array): Point {
+export function parseUncompressed(arr: Uint8Array): NonPointAtInfinity {
 	if (arr.length !== 65) throw new Error("Invalid key");
 	if (arr[0] !== 0x04) throw new Error("Invalid key");
 	const x = arr.slice(1, 33);
@@ -70,6 +71,19 @@ export function formatSignature({
 		leftPadUint8Array(bigIntToByteArray(r), 32),
 		leftPadUint8Array(bigIntToByteArray(s), 32)
 	);
+}
+
+export function unformatSignature(signature: Uint8Array): {
+	r: bigint;
+	s: bigint;
+} {
+	if (signature.length !== 64) {
+		throw new Error("Invalid signature format");
+	}
+
+	const r = uint8ArrayToBigInt(signature.slice(0, 32));
+	const s = uint8ArrayToBigInt(signature.slice(32, 64));
+	return { r, s };
 }
 
 /**
@@ -160,4 +174,171 @@ export async function deriveKeys(sharedSecret: bigint, salt: Uint8Array) {
 	);
 
 	return encryptionKey;
+}
+
+type ECIESEncryptedMaterial = {
+	ephemeralKey: NonPointAtInfinity;
+	salt: Uint8Array;
+	ciphertext: Uint8Array;
+	iv: Uint8Array;
+};
+
+export function encodeECIESMaterial({
+	ephemeralKey,
+	salt,
+	ciphertext,
+	iv,
+}: ECIESEncryptedMaterial): string {
+	const keyPart = toBase64(uncompressedKeyFormat(ephemeralKey));
+	const saltPart = toBase64(salt);
+	const ciphertextPart = toBase64(ciphertext);
+	const ivPart = toBase64(iv);
+	return [keyPart, saltPart, ciphertextPart, ivPart].join(".");
+}
+
+export async function decodeECIESMaterial(
+	material: string
+): Promise<ECIESEncryptedMaterial> {
+	const parts = material.split(".");
+	if (parts.length !== 4) {
+		throw new Error("Malformed material");
+	}
+	const [keyPart, saltPart, ciphertextPart, ivPart] = parts;
+	const ephemeralKey = parseUncompressed(await fromBase64(keyPart));
+	const salt = await fromBase64(saltPart);
+	const ciphertext = await fromBase64(ciphertextPart);
+	const iv = await fromBase64(ivPart);
+	return {
+		ephemeralKey,
+		salt,
+		ciphertext,
+		iv,
+	};
+}
+
+/**
+ * Encrypts a message using the ECIES encryption scheme.
+ * @param publicKey The other party's public key
+ * @param message The message to encrypt
+ * @returns Encryption material
+ */
+export async function eciesEncrypt(
+	publicKey: NonPointAtInfinity,
+	message: Uint8Array
+): Promise<ECIESEncryptedMaterial> {
+	// Ephemeral private key
+	const r = generateSafeScalar();
+
+	// Ephemeral public key
+	const R = scalarMultiply(r, G);
+	if (R === pointAtInfinity) {
+		throw new Error(
+			"Generated scalar ended up being a multiple of the generator order!"
+		);
+	}
+
+	// Shared secret
+	const P = scalarMultiply(r, publicKey);
+	if (P === pointAtInfinity) {
+		throw new Error(
+			"Generated scalar ended up being a multiple of the generator order!"
+		);
+	}
+
+	const salt = new Uint8Array(32);
+	crypto.getRandomValues(salt);
+
+	const encryptionKey = await deriveKeys(P.x, salt);
+
+	// Generate a random Initialization Vector (IV), typically 12 bytes for AES-GCM
+	const iv = crypto.getRandomValues(new Uint8Array(12));
+
+	// Encrypt the data using AES-GCM with the derived key and IV
+	const encryptedData = await crypto.subtle.encrypt(
+		{
+			name: "AES-GCM",
+			iv: iv, // Initialization Vector
+			tagLength: 128, // Tag length (default for AES-GCM)
+		},
+		encryptionKey, // The derived key
+		message // The plaintext data as an ArrayBuffer
+	);
+
+	return {
+		ephemeralKey: R,
+		salt,
+		ciphertext: new Uint8Array(encryptedData),
+		iv,
+	};
+}
+
+export async function eciesDecrypt(
+	privateKey: bigint,
+	{ ephemeralKey, salt, ciphertext, iv }: ECIESEncryptedMaterial
+): Promise<Uint8Array | null> {
+	const P = scalarMultiply(privateKey, ephemeralKey);
+	if (P === pointAtInfinity) {
+		return null;
+	}
+
+	const decryptionKey = await deriveKeys(P.x, salt);
+
+	return new Uint8Array(
+		await crypto.subtle.decrypt(
+			{
+				name: "AES-GCM",
+				iv,
+				tagLength: 128,
+			},
+			decryptionKey,
+			ciphertext
+		)
+	);
+}
+
+export async function schemeEncrypt(
+	senderPrivateKey: bigint,
+	recipientPublicKey: NonPointAtInfinity,
+	message: Uint8Array
+) {
+	const material = encodeECIESMaterial(
+		await eciesEncrypt(recipientPublicKey, message)
+	);
+	const signature = ecdsaSign(
+		senderPrivateKey,
+		new Uint8Array(await sha256(new TextEncoder().encode(material)))
+	);
+
+	return [btoa(material), toBase64(formatSignature(signature))].join(".");
+}
+
+export async function schemeVerifyAndDecrypt(
+	senderPublicKey: NonPointAtInfinity,
+	recipientPrivateKey: bigint,
+	payloadAndSignature: string
+): Promise<
+	| { message: Uint8Array | null; valid: false }
+	| { message: Uint8Array; valid: true }
+> {
+	const parts = payloadAndSignature.split(".");
+	if (parts.length !== 2) {
+		throw new Error("Invalid payload and signature");
+	}
+	const [materialPart, signaturePart] = parts;
+	const material = atob(materialPart);
+	const signature = unformatSignature(await fromBase64(signaturePart));
+
+	const verified = ecdsaVerify(
+		senderPublicKey,
+		new Uint8Array(await sha256(new TextEncoder().encode(material))),
+		signature
+	);
+
+	const eciesMaterial = await decodeECIESMaterial(material);
+
+	const message = await eciesDecrypt(recipientPrivateKey, eciesMaterial);
+	if (verified && message) {
+		return { message, valid: true };
+	}
+	return { message, valid: false };
 }

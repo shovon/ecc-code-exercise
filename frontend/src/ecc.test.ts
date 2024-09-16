@@ -1,9 +1,20 @@
 import { expect, test } from "vitest";
-import { areEqual, G, isOnCurve, scalarMultiply } from "./secp256r1";
+import {
+	areEqual,
+	G,
+	generateSafeScalar,
+	isOnCurve,
+	pointAtInfinity,
+	scalarMultiply,
+} from "./secp256r1";
 import {
 	ecdsaSign,
 	ecdsaVerify,
+	eciesDecrypt,
+	eciesEncrypt,
 	parseUncompressed,
+	schemeEncrypt,
+	schemeVerifyAndDecrypt,
 	uncompressedKeyFormat,
 } from "./ecc";
 import { fromBase64 } from "./uint8array";
@@ -98,4 +109,65 @@ test("encoded 206815206281399259625267991303412730865018785989715805169420921834
 	const encoded = uncompressedKeyFormat(expectedPoint);
 	const parsed = parseUncompressed(encoded);
 	expect(areEqual(expectedPoint, parsed)).toBe(true);
+});
+
+test("eciesEncrypt and eciesDecrypt", async () => {
+	const bobPrivateKey = generateSafeScalar();
+
+	const bobPublicKey = scalarMultiply(bobPrivateKey, G);
+	if (bobPublicKey === pointAtInfinity) {
+		throw new Error("The public key ended up being the point at infinity");
+	}
+
+	const expectedMessage = "Hello, World!";
+
+	const message = new TextEncoder().encode("Hello, World!");
+
+	const aliceEncryptionMaterial = await eciesEncrypt(bobPublicKey, message);
+	const decryptedPT = await eciesDecrypt(
+		bobPrivateKey,
+		aliceEncryptionMaterial
+	);
+	if (decryptedPT === null) {
+		throw new Error("Failed to decrypt");
+	}
+
+	expect(new TextDecoder().decode(decryptedPT)).toBe(expectedMessage);
+});
+
+test("schemeEncrypt and schemeVerifyAndDecrypt", async () => {
+	const alicePrivateKey = generateSafeScalar();
+	const bobPrivateKey = generateSafeScalar();
+
+	const alicePublicKey = scalarMultiply(alicePrivateKey, G);
+	if (alicePublicKey === pointAtInfinity) {
+		throw new Error("Alice's public key is the point at infinity.");
+	}
+	const bobPublicKey = scalarMultiply(bobPrivateKey, G);
+	if (bobPublicKey === pointAtInfinity) {
+		throw new Error("Bob's public key is the point at infinity.");
+	}
+
+	const expectedMessage = "Hello, World!";
+
+	const message = new TextEncoder().encode("Hello, World!");
+
+	const aliceSignedCT = await schemeEncrypt(
+		alicePrivateKey,
+		bobPublicKey,
+		message
+	);
+
+	const { message: decryptedMessage, valid } = await schemeVerifyAndDecrypt(
+		alicePublicKey,
+		bobPrivateKey,
+		aliceSignedCT
+	);
+
+	if (!valid) {
+		throw new Error("Not a valid response");
+	}
+
+	expect(valid).toBe(true);
+	expect(new TextDecoder().decode(decryptedMessage)).toBe(expectedMessage);
 });

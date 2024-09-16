@@ -222,7 +222,21 @@ wss.on("connection", function (ws: WebSocket, request: IncomingMessage) {
 				logger.error("Client connection errored out", error);
 				removeConnection({ sessionId, key: publicKey });
 			});
-			ws.on("message", () => {});
+			ws.on("message", (e) => {
+				const message = e.toString("utf8");
+				const parsed = JSON.parse(message);
+				if (!parsed) {
+					return;
+				}
+				switch (parsed.type) {
+					case "SET_NAME":
+						if (typeof parsed.data === "string") {
+							const name = (parsed.data as string).trim();
+							setName({ sessionId, name });
+						}
+						break;
+				}
+			});
 			ws.on("close", () => {
 				logger.info("Client closed connection");
 				removeConnection({ sessionId, key: publicKey });

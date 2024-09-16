@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
+import { ChatWindow } from "./ChatWindow.tsx";
 
 const router = createBrowserRouter([
 	{
@@ -18,8 +19,8 @@ const router = createBrowserRouter([
 				),
 			},
 			{
-				path: "/chat/:chatId",
-				element: <div>Chat window</div>,
+				path: "/chat/:userId",
+				element: <ChatWindow />,
 			},
 		],
 	},

@@ -202,24 +202,3 @@ export function generateSafeScalar(): bigint {
 	}
 	return scalar;
 }
-
-// export async function eciesEncrypt(
-// 	publicKey: NonPointAtInfinity,
-// 	message: Uint8Array
-// ) {
-// 	let r = generateSafeScalar();
-// 	let point = scalarMultiply(r, G);
-// 	while (point === pointAtInfinity) {
-// 		r = generateSafeScalar();
-// 		point = scalarMultiply(r, G);
-// 	}
-
-// 	const s = publicKey.x;
-
-// 	const salt = new Uint8Array(32);
-// 	crypto.getRandomValues(salt);
-
-// 	const encryptionKey = await deriveKeys(s, salt);
-
-// 	//
-// }

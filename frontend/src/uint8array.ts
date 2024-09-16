@@ -11,7 +11,7 @@ export function concatenateUint8Arrays(...arrays: Uint8Array[]): Uint8Array {
 
 export function toBase64(buffer: Uint8Array) {
 	const binary = String.fromCharCode.apply(null, [...buffer]);
-	return window.btoa(binary);
+	return btoa(binary);
 }
 
 export async function fromBase64(base64: string): Promise<Uint8Array> {
